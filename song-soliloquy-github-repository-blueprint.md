@@ -1,6 +1,6 @@
 # Song Soliloquy GitHub Repository Blueprint
 
-Version: 2.1 — includes workflow audit, optional entertainment-value layers, Did You Know / Context Cards, production-performance notes, verification fields, and updated schema addendum.
+Version: 2.4 - includes workflow audit, optional entertainment-value layers, Did You Know / Context Cards, production-performance notes, verification fields, Supabase backend integration, Song Detail route import stability, and upload slug-resolution/persistence patch.
 
 Repository-ready project file for building, documenting, and maintaining the Song Soliloquy website, upload engine, analysis schema, design system, content archive, and creator workflow.
 
@@ -8,6 +8,29 @@ Repository-ready project file for building, documenting, and maintaining the Son
 ## Version 2.1 Change Note
 
 This update audits the track-submission workflow and adds optional enrichment layers for entertainment value and deeper context. The core recommendation is to add **Context Cards / Did You Know Cards** supported by a **Reference Ledger**, **Production Lens**, **Performance Notes**, **Rewind Triggers**, **Emotional Arc**, **First Listen vs Deep Listen**, and **Verification Status**. These are optional modules, not mandatory filler.
+
+
+## Version 2.2 Change Note
+
+This update adds a Supabase backend integration plan for the Song Soliloquy website. Supabase becomes the live backend for uploaded files, parsed song-analysis records, public/draft publishing states, Search, Storage, Auth, Row Level Security, Context Cards, Reference Ledger records, and the Connection Web. GitHub remains the source of truth for code, migrations, schemas, documentation, and deployment workflow.
+
+
+## Version 2.3 Change Note
+
+This update adds a runtime-stability patch for the Song Detail route. The Figma Make preview showed `Unexpected Application Error: Failed to fetch dynamically imported module ... /src/app/components/pages/SongDetail.tsx`. The patch treats this as a route module loading problem, not a content/schema/Supabase issue.
+
+The fix is to remove route-level dynamic imports for core page routes inside the Figma preview, statically import `SongDetail`, add branded `RouteErrorBoundary` / `errorElement` coverage, verify export shape, remove nested `React.lazy` chains from the song detail page, and reserve lazy loading for optional below-the-fold modules after the main song page is stable.
+
+---
+
+
+## Version 2.4 Change Note
+
+This update fixes the post-upload `Song Not Found` state seen after a successful file upload. The current screen proves the previous dynamic-import crash is resolved; the app now loads the `SongDetail` route but cannot resolve the uploaded song under the slug it navigated to.
+
+The patch adds canonical slug derivation, filename/export-suffix cleanup, generated import ID handling, slug aliases, localStorage persistence for Figma preview, Supabase alias-table support for production, Library inclusion of uploaded songs, and redirect/canonicalization behavior for legacy or generated upload URLs.
+
+Core rule: the public song URL should use the canonical song slug, such as `ransom-tears-from-a-third-eye`, while the original filename and generated upload slug should be saved as aliases, not used as the primary route.
 
 ---
 
@@ -2786,7 +2809,7 @@ After adding this file, the next commit could be:
 
 ```txt
 git add docs/SONG_SOLILOQUY_REPOSITORY_BLUEPRINT.md
-git commit -m "Add Song Soliloquy repository blueprint and enrichment audit"
+git commit -m "Add Song Soliloquy repository blueprint, enrichment audit, and Supabase backend patch"
 git push
 ```
 
@@ -2794,6 +2817,1770 @@ If using this as the root README:
 
 ```txt
 git add README.md
-git commit -m "Add Song Soliloquy README and enrichment audit"
+git commit -m "Add Song Soliloquy README, enrichment audit, and Supabase backend patch"
 git push
 ```
+
+---
+
+---
+
+# Song Soliloquy Supabase Backend Integration Patch
+
+Version: 2.2
+Patch type: Backend architecture, database schema, upload workflow, security, and GitHub implementation plan
+Recommended file path: `docs/patches/song-soliloquy-supabase-backend-integration-patch.md`
+
+---
+
+## 1. Purpose
+
+This patch adds Supabase as the live backend for the Song Soliloquy website.
+
+GitHub remains the source of truth for:
+
+- Website code
+- Database migrations
+- Schema documentation
+- Parser logic
+- Validation rules
+- Design prompts
+- Content templates
+- Issue tracking
+- Release history
+
+Supabase becomes the live application backend for:
+
+- Uploaded breakdown files
+- Parsed song records
+- Analysis pages
+- Lyrics sections and lyric-line annotations
+- Bar-by-bar analysis cards
+- Key bars
+- Hottest bar records
+- NotebookLM source packs
+- YouTube-ready angle data
+- Context Cards / Did You Know cards
+- Reference ledger
+- Song connection graph
+- Search indexes
+- User accounts and editor/admin roles
+- Review states and publishing workflow
+- Public website reads
+- Private admin/editor writes
+
+Core architecture principle:
+
+> GitHub controls how the product is built. Supabase controls the live content, users, publishing states, search, and backend data relationships.
+
+---
+
+## 2. Why Supabase Fits Song Soliloquy
+
+Supabase is a strong fit because Song Soliloquy needs structured data, flexible JSON, uploads, authentication, editorial review states, and fast website reads.
+
+Song Soliloquy content is part document, part database record, and part creator dashboard. A Markdown file is perfect as the master upload/export artifact, but once the website needs search, filtering, public/private states, relation maps, tags, uploads, and dashboards, the content should also be parsed into database tables.
+
+Recommended model:
+
+1. Keep Markdown as the human-readable master upload/export file.
+2. Parse the Markdown into structured JSON.
+3. Store the original upload in Supabase Storage.
+4. Store the parsed content in Supabase Postgres.
+5. Render public song pages from Supabase.
+6. Keep database changes versioned in GitHub migrations.
+7. Use Supabase Auth and Row Level Security for admin/editor protection.
+
+---
+
+## 3. Backend Responsibilities
+
+### 3.1 GitHub Responsibilities
+
+GitHub should contain:
+
+```txt
+README.md
+docs/
+  SONG_SOLILOQUY_REPOSITORY_BLUEPRINT.md
+  patches/
+    song-soliloquy-supabase-backend-integration-patch.md
+  schemas/
+    song-analysis.schema.json
+    enrichment.schema.json
+    supabase-record.schema.json
+supabase/
+  config.toml
+  migrations/
+    000001_initial_song_soliloquy_schema.sql
+    000002_storage_policies.sql
+    000003_search_indexes.sql
+src/
+  lib/
+    supabase/
+      client.ts
+      server.ts
+      admin.ts
+    parser/
+      parse-song-soliloquy-markdown.ts
+      validate-analysis-payload.ts
+    actions/
+      import-analysis-file.ts
+      publish-song-analysis.ts
+      update-song-analysis.ts
+.github/
+  workflows/
+    supabase-migrations.yml
+    web-ci.yml
+```
+
+### 3.2 Supabase Responsibilities
+
+Supabase should contain:
+
+```txt
+Postgres tables
+Supabase Auth users
+Storage buckets
+Row Level Security policies
+Database functions
+Search indexes
+Optional Edge Functions
+Optional Realtime hooks
+Optional Vector search tables
+```
+
+### 3.3 Website Responsibilities
+
+The website should:
+
+1. Allow authenticated creators/editors to upload files.
+2. Store the original file in Supabase Storage.
+3. Parse the file into structured sections.
+4. Insert or update database records.
+5. Show an admin preview.
+6. Let an editor approve, revise, or publish.
+7. Render public pages only when the record is published.
+8. Keep drafts private.
+9. Expose search, filters, and connection-web data from Supabase.
+
+---
+
+## 4. Song Submission Workflow With Supabase
+
+### 4.1 Upload Flow
+
+```txt
+User uploads .md or .json file
+        |
+        v
+Next.js upload route or server action receives file
+        |
+        v
+Original file saved to Supabase Storage bucket: analysis-imports
+        |
+        v
+analysis_uploads row created with status = uploaded
+        |
+        v
+Parser extracts metadata, lyrics, bar analysis, key bars, hottest bar, raw notes, NotebookLM pack, YouTube angle, context cards, references, and connection data
+        |
+        v
+Parsed payload validated against JSON schema
+        |
+        v
+Database transaction creates/updates song, analysis sections, bars, tags, references, search records, and connection records
+        |
+        v
+analysis_uploads status changes to parsed or needs_review
+        |
+        v
+Editor reviews preview
+        |
+        v
+Editor publishes
+        |
+        v
+Public website reads published record from Supabase
+```
+
+### 4.2 Import Statuses
+
+Use these statuses in `analysis_uploads`:
+
+```txt
+uploaded
+parsing
+parsed
+needs_review
+failed
+approved
+published
+archived
+```
+
+### 4.3 Publishing Statuses
+
+Use these statuses in `songs.publication_status`:
+
+```txt
+draft
+needs_review
+approved
+published
+hidden_until_verified
+archived
+rejected
+```
+
+### 4.4 Rights and Lyrics Visibility
+
+Use a separate visibility field for lyrics because public lyric display can create copyright risk.
+
+Recommended values:
+
+```txt
+private_full_lyrics = full lyrics visible only to editor/admin
+excerpt_only = public page shows only short necessary excerpts attached to commentary
+public_full_lyrics = only use when rights/permission allow it
+hidden = no lyrics displayed publicly
+```
+
+Best practice:
+
+> Store full lyrics privately for analysis workflow if needed. Public pages should default to excerpt-only commentary unless rights clearance allows more.
+
+---
+
+## 5. Recommended Supabase Tables
+
+### 5.1 Core Identity Tables
+
+```txt
+profiles
+workspaces
+workspace_members
+```
+
+Purpose:
+
+- Track users from Supabase Auth.
+- Support single-user mode now.
+- Allow team/editor roles later.
+
+### 5.2 Core Song Tables
+
+```txt
+songs
+song_credits
+artists
+producers
+projects
+```
+
+Purpose:
+
+- Store canonical song metadata.
+- Support multiple artists, featured artists, producers, albums, projects, and credits.
+
+### 5.3 Import Tables
+
+```txt
+analysis_uploads
+analysis_import_errors
+```
+
+Purpose:
+
+- Store original uploaded files.
+- Track parsing status.
+- Log validation problems.
+
+### 5.4 Analysis Content Tables
+
+```txt
+lyrics_sections
+lyrics_lines
+bar_analyses
+key_bars
+hottest_bars
+raw_notes
+notebooklm_packs
+notebooklm_questions
+youtube_angles
+```
+
+Purpose:
+
+- Power the interactive song page.
+- Let each section be searched, filtered, copied, exported, and used in creator tools.
+
+### 5.5 Entertainment and Context Tables
+
+```txt
+context_cards
+what_you_might_have_missed
+production_lens_notes
+performance_notes
+reference_ledger
+rewind_moments
+emotional_arc_points
+first_listen_deep_listen_notes
+viewer_engagement_prompts
+```
+
+Purpose:
+
+- Add optional entertainment-value layers without forcing trivia.
+- Make each song page feel richer when the material supports it.
+
+### 5.6 Tagging and Connection Tables
+
+```txt
+tags
+song_tags
+bar_tags
+song_connections
+connection_evidence
+viewer_suggestions
+```
+
+Purpose:
+
+- Support filtering by mood, theme, bar type, reference type, and creator value.
+- Build the Connection Web.
+- Connect songs by BPM, sample lineage, references, producer, theme, mood, wordplay, rhyme architecture, and catalog callbacks.
+
+### 5.7 Search and AI Tables
+
+```txt
+search_documents
+analysis_embeddings optional
+```
+
+Purpose:
+
+- Use Postgres full-text search for normal search.
+- Optionally use vector embeddings for semantic search later.
+
+---
+
+## 6. Starter SQL Migration
+
+Create this as:
+
+```txt
+supabase/migrations/000001_initial_song_soliloquy_schema.sql
+```
+
+```sql
+create extension if not exists pgcrypto;
+
+-- Optional, only enable when semantic/vector search is ready.
+-- create extension if not exists vector;
+
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  display_name text,
+  role text not null default 'creator' check (role in ('creator', 'editor', 'admin')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.workspaces (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  slug text not null unique,
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.workspace_members (
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  role text not null default 'editor' check (role in ('owner', 'admin', 'editor', 'viewer')),
+  created_at timestamptz not null default now(),
+  primary key (workspace_id, user_id)
+);
+
+create table if not exists public.artists (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  slug text not null unique,
+  bio text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.producers (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  slug text not null unique,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.projects (
+  id uuid primary key default gen_random_uuid(),
+  artist_id uuid references public.artists(id) on delete set null,
+  title text not null,
+  slug text not null,
+  release_date date,
+  project_type text default 'album' check (project_type in ('album', 'ep', 'mixtape', 'soundtrack', 'single', 'freestyle', 'unknown')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (artist_id, slug)
+);
+
+create table if not exists public.songs (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid references public.workspaces(id) on delete cascade,
+  primary_artist_id uuid references public.artists(id) on delete set null,
+  project_id uuid references public.projects(id) on delete set null,
+  title text not null,
+  slug text not null,
+  artist_display text not null,
+  producer_display text,
+  project_display text,
+  release_date date,
+  track_number text,
+  overall_mood text,
+  main_themes text[] not null default '{}',
+  narrative_perspective text,
+  publication_status text not null default 'draft' check (publication_status in ('draft', 'needs_review', 'approved', 'published', 'hidden_until_verified', 'archived', 'rejected')),
+  lyrics_visibility text not null default 'excerpt_only' check (lyrics_visibility in ('private_full_lyrics', 'excerpt_only', 'public_full_lyrics', 'hidden')),
+  canonical_analysis jsonb not null default '{}'::jsonb,
+  stats jsonb not null default '{}'::jsonb,
+  seo jsonb not null default '{}'::jsonb,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (workspace_id, slug)
+);
+
+create table if not exists public.song_credits (
+  id uuid primary key default gen_random_uuid(),
+  song_id uuid not null references public.songs(id) on delete cascade,
+  person_name text not null,
+  role text not null,
+  display_order integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.analysis_uploads (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid references public.workspaces(id) on delete cascade,
+  song_id uuid references public.songs(id) on delete set null,
+  uploaded_by uuid references auth.users(id) on delete set null,
+  original_filename text not null,
+  storage_bucket text not null default 'analysis-imports',
+  storage_path text not null,
+  file_type text not null,
+  file_size_bytes bigint,
+  status text not null default 'uploaded' check (status in ('uploaded', 'parsing', 'parsed', 'needs_review', 'failed', 'approved', 'published', 'archived')),
+  parsed_payload jsonb not null default '{}'::jsonb,
+  error_message text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.analysis_import_errors (
+  id uuid primary key default gen_random_uuid(),
+  upload_id uuid not null references public.analysis_uploads(id) on delete cascade,
+  severity text not null default 'error' check (severity in ('info', 'warning', 'error')),
+  field_path text,
+  message text not null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.lyrics_sections (
+  id uuid primary key default gen_random_uuid(),
+  song_id uuid not null references public.songs(id) on delete cascade,
+  section_label text not null,
+  display_order integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.lyrics_lines (
+  id uuid primary key default gen_random_uuid(),
+  song_id uuid not null references public.songs(id) on delete cascade,
+  section_id uuid references public.lyrics_sections(id) on delete cascade,
+  line_text text not null,
+  line_number integer,
+  display_order integer not null default 0,
+  is_public_excerpt boolean not null default false,
+  is_key_bar boolean not null default false,
+  is_hottest_bar boolean not null default false,
+  annotations jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.bar_analyses (
+  id uuid primary key default gen_random_uuid(),
+  song_id uuid not null references public.songs(id) on delete cascade,
+  lyrics_line_id uuid references public.lyrics_lines(id) on delete set null,
+  bar_quote text not null,
+  breakdown text,
+  deeper_read text,
+  technical_notes text,
+  why_it_hits text,
+  bar_types text[] not null default '{}',
+  themes text[] not null default '{}',
+  references jsonb not null default '[]'::jsonb,
+  scores jsonb not null default '{}'::jsonb,
+  display_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.key_bars (
+  id uuid primary key default gen_random_uuid(),
+  song_id uuid not null references public.songs(id) on delete cascade,
+  bar_analysis_id uuid references public.bar_analyses(id) on delete set null,
+  bar_quote text not null,
+  why_important text,
+  theme_represented text,
+  classification text[] not null default '{}',
+  emotional_weight numeric,
+  technical_craft numeric,
+  discussion_value numeric,
+  rank_order integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.hottest_bars (
+  id uuid primary key default gen_random_uuid(),
+  song_id uuid not null references public.songs(id) on delete cascade unique,
+  bar_analysis_id uuid references public.bar_analyses(id) on delete set null,
+  bar_quote text not null,
+  score numeric,
+  why_it_wins text,
+  surface_meaning text,
+  hidden_meaning text,
+  technical_craft text,
+  viewer_reaction_potential text,
+  youtube_discussion_value text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.raw_notes (
+  id uuid primary key default gen_random_uuid(),
+  song_id uuid not null references public.songs(id) on delete cascade unique,
+  notes jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.notebooklm_packs (
+  id uuid primary key default gen_random_uuid(),
+  song_id uuid not null references public.songs(id) on delete cascade unique,
+  source_pack jsonb not null default '{}'::jsonb,
+  markdown text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.notebooklm_questions (
+  id uuid primary key default gen_random_uuid(),
+  song_id uuid not null references public.songs(id) on delete cascade,
+  category text not null default 'general',
+  question text not null,
+  display_order integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.youtube_angles (
+  id uuid primary key default gen_random_uuid(),
+  song_id uuid not null references public.songs(id) on delete cascade unique,
+  best_youtube_title text,
+  hook_opening_line text,
+  main_thesis text,
+  strongest_talking_points jsonb not null default '[]'::jsonb,
+  best_quote_to_open_with text,
+  best_quote_to_end_with text,
+  suggested_thumbnail_text text[] not null default '{}',
+  creator_notes jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.context_cards (
+  id uuid primary key default gen_random_uuid(),
+  song_id uuid not null references public.songs(id) on delete cascade,
+  card_type text not null check (card_type in ('did_you_know', 'what_you_might_have_missed', 'production_lens', 'performance_note', 'catalog_callback', 'reference_context', 'rewind_moment', 'first_listen_vs_deep_listen')),
+  title text not null,
+  body text not null,
+  related_bar_quote text,
+  evidence_status text not null default 'needs_verification' check (evidence_status in ('verified', 'likely', 'interpretive', 'needs_verification', 'unverified')),
+  source_label text,
+  source_url text,
+  display_order integer not null default 0,
+  is_public boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.reference_ledger (
+  id uuid primary key default gen_random_uuid(),
+  song_id uuid not null references public.songs(id) on delete cascade,
+  reference_type text not null,
+  reference_label text not null,
+  explanation text,
+  related_bar_quote text,
+  verification_status text not null default 'needs_verification' check (verification_status in ('verified', 'likely', 'interpretive', 'needs_verification', 'unverified')),
+  source_label text,
+  source_url text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.tags (
+  id uuid primary key default gen_random_uuid(),
+  tag_type text not null,
+  name text not null,
+  slug text not null,
+  created_at timestamptz not null default now(),
+  unique (tag_type, slug)
+);
+
+create table if not exists public.song_tags (
+  song_id uuid not null references public.songs(id) on delete cascade,
+  tag_id uuid not null references public.tags(id) on delete cascade,
+  primary key (song_id, tag_id)
+);
+
+create table if not exists public.bar_tags (
+  bar_analysis_id uuid not null references public.bar_analyses(id) on delete cascade,
+  tag_id uuid not null references public.tags(id) on delete cascade,
+  primary key (bar_analysis_id, tag_id)
+);
+
+create table if not exists public.song_connections (
+  id uuid primary key default gen_random_uuid(),
+  source_song_id uuid not null references public.songs(id) on delete cascade,
+  target_song_id uuid references public.songs(id) on delete cascade,
+  external_song_title text,
+  external_artist_name text,
+  connection_type text not null,
+  connection_label text not null,
+  explanation text,
+  strength numeric,
+  evidence_status text not null default 'interpretive' check (evidence_status in ('verified', 'likely', 'interpretive', 'needs_verification', 'unverified')),
+  evidence jsonb not null default '{}'::jsonb,
+  is_public boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.viewer_suggestions (
+  id uuid primary key default gen_random_uuid(),
+  song_id uuid not null references public.songs(id) on delete cascade,
+  submitted_by uuid references auth.users(id) on delete set null,
+  suggestion_type text not null default 'song_connection',
+  suggestion_body text not null,
+  status text not null default 'new' check (status in ('new', 'reviewing', 'accepted', 'rejected', 'archived')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.search_documents (
+  id uuid primary key default gen_random_uuid(),
+  song_id uuid not null references public.songs(id) on delete cascade,
+  document_type text not null,
+  title text not null,
+  search_text text not null,
+  search_vector tsvector generated always as (to_tsvector('english', coalesce(title, '') || ' ' || coalesce(search_text, ''))) stored,
+  is_public boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_songs_publication_status on public.songs(publication_status);
+create index if not exists idx_songs_slug on public.songs(slug);
+create index if not exists idx_bar_analyses_song_id on public.bar_analyses(song_id);
+create index if not exists idx_lyrics_lines_song_id on public.lyrics_lines(song_id);
+create index if not exists idx_key_bars_song_id on public.key_bars(song_id);
+create index if not exists idx_context_cards_song_id on public.context_cards(song_id);
+create index if not exists idx_reference_ledger_song_id on public.reference_ledger(song_id);
+create index if not exists idx_song_connections_source on public.song_connections(source_song_id);
+create index if not exists idx_search_documents_vector on public.search_documents using gin(search_vector);
+```
+
+---
+
+## 7. Row Level Security Patch
+
+Create this as:
+
+```txt
+supabase/migrations/000002_rls_policies.sql
+```
+
+RLS rules should make the public site readable while keeping drafts, private lyrics, uploads, and admin edits protected.
+
+```sql
+alter table public.profiles enable row level security;
+alter table public.workspaces enable row level security;
+alter table public.workspace_members enable row level security;
+alter table public.artists enable row level security;
+alter table public.producers enable row level security;
+alter table public.projects enable row level security;
+alter table public.songs enable row level security;
+alter table public.song_credits enable row level security;
+alter table public.analysis_uploads enable row level security;
+alter table public.analysis_import_errors enable row level security;
+alter table public.lyrics_sections enable row level security;
+alter table public.lyrics_lines enable row level security;
+alter table public.bar_analyses enable row level security;
+alter table public.key_bars enable row level security;
+alter table public.hottest_bars enable row level security;
+alter table public.raw_notes enable row level security;
+alter table public.notebooklm_packs enable row level security;
+alter table public.notebooklm_questions enable row level security;
+alter table public.youtube_angles enable row level security;
+alter table public.context_cards enable row level security;
+alter table public.reference_ledger enable row level security;
+alter table public.tags enable row level security;
+alter table public.song_tags enable row level security;
+alter table public.bar_tags enable row level security;
+alter table public.song_connections enable row level security;
+alter table public.viewer_suggestions enable row level security;
+alter table public.search_documents enable row level security;
+
+create or replace function public.is_workspace_member(target_workspace_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.workspace_members wm
+    where wm.workspace_id = target_workspace_id
+      and wm.user_id = (select auth.uid())
+  );
+$$;
+
+create or replace function public.is_workspace_editor(target_workspace_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.workspace_members wm
+    where wm.workspace_id = target_workspace_id
+      and wm.user_id = (select auth.uid())
+      and wm.role in ('owner', 'admin', 'editor')
+  );
+$$;
+
+create or replace function public.song_is_published(target_song_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.songs s
+    where s.id = target_song_id
+      and s.publication_status = 'published'
+  );
+$$;
+
+create policy "profiles can read own profile"
+on public.profiles for select
+to authenticated
+using (id = (select auth.uid()));
+
+create policy "profiles can update own profile"
+on public.profiles for update
+to authenticated
+using (id = (select auth.uid()))
+with check (id = (select auth.uid()));
+
+create policy "workspace members can read workspace"
+on public.workspaces for select
+to authenticated
+using (public.is_workspace_member(id));
+
+create policy "workspace owners can update workspace"
+on public.workspaces for update
+to authenticated
+using (owner_id = (select auth.uid()))
+with check (owner_id = (select auth.uid()));
+
+create policy "public can read published songs"
+on public.songs for select
+to anon, authenticated
+using (publication_status = 'published');
+
+create policy "workspace members can read songs"
+on public.songs for select
+to authenticated
+using (public.is_workspace_member(workspace_id));
+
+create policy "workspace editors can insert songs"
+on public.songs for insert
+to authenticated
+with check (public.is_workspace_editor(workspace_id));
+
+create policy "workspace editors can update songs"
+on public.songs for update
+to authenticated
+using (public.is_workspace_editor(workspace_id))
+with check (public.is_workspace_editor(workspace_id));
+
+create policy "public can read published bar analysis"
+on public.bar_analyses for select
+to anon, authenticated
+using (public.song_is_published(song_id));
+
+create policy "public can read published key bars"
+on public.key_bars for select
+to anon, authenticated
+using (public.song_is_published(song_id));
+
+create policy "public can read published hottest bars"
+on public.hottest_bars for select
+to anon, authenticated
+using (public.song_is_published(song_id));
+
+create policy "public can read published notebook questions"
+on public.notebooklm_questions for select
+to anon, authenticated
+using (public.song_is_published(song_id));
+
+create policy "public can read public context cards for published songs"
+on public.context_cards for select
+to anon, authenticated
+using (is_public = true and public.song_is_published(song_id));
+
+create policy "public can read public song connections for published songs"
+on public.song_connections for select
+to anon, authenticated
+using (is_public = true and public.song_is_published(source_song_id));
+
+create policy "public can read public search documents"
+on public.search_documents for select
+to anon, authenticated
+using (is_public = true);
+
+create policy "public can read public lyric excerpts only"
+on public.lyrics_lines for select
+to anon, authenticated
+using (
+  is_public_excerpt = true
+  and exists (
+    select 1
+    from public.songs s
+    where s.id = lyrics_lines.song_id
+      and s.publication_status = 'published'
+      and s.lyrics_visibility in ('excerpt_only', 'public_full_lyrics')
+  )
+);
+
+create policy "workspace members can read private song detail tables"
+on public.lyrics_lines for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.songs s
+    where s.id = lyrics_lines.song_id
+      and public.is_workspace_member(s.workspace_id)
+  )
+);
+
+create policy "workspace editors can manage uploads"
+on public.analysis_uploads for all
+to authenticated
+using (public.is_workspace_editor(workspace_id))
+with check (public.is_workspace_editor(workspace_id));
+```
+
+Important note:
+
+> Add equivalent workspace editor insert/update/delete policies for child tables as implementation continues. The first MVP can write child records only from trusted server routes using a secret key while public reads remain governed by RLS.
+
+---
+
+## 8. Supabase Storage Patch
+
+Create this as:
+
+```txt
+supabase/migrations/000003_storage_buckets_and_policies.sql
+```
+
+Recommended buckets:
+
+```txt
+analysis-imports        private original uploaded Markdown/JSON files
+analysis-exports        private generated Markdown/PDF/DOCX exports
+public-assets           public thumbnails, quote cards, non-copyrighted visuals
+private-assets          private admin-only source images or draft assets
+```
+
+Starter migration:
+
+```sql
+insert into storage.buckets (id, name, public)
+values
+  ('analysis-imports', 'analysis-imports', false),
+  ('analysis-exports', 'analysis-exports', false),
+  ('public-assets', 'public-assets', true),
+  ('private-assets', 'private-assets', false)
+on conflict (id) do nothing;
+
+create policy "authenticated users can upload own imports"
+on storage.objects for insert
+to authenticated
+with check (
+  bucket_id = 'analysis-imports'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);
+
+create policy "authenticated users can read own imports"
+on storage.objects for select
+to authenticated
+using (
+  bucket_id = 'analysis-imports'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);
+
+create policy "authenticated users can upload own exports"
+on storage.objects for insert
+to authenticated
+with check (
+  bucket_id = 'analysis-exports'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);
+
+create policy "authenticated users can read own exports"
+on storage.objects for select
+to authenticated
+using (
+  bucket_id = 'analysis-exports'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);
+
+create policy "public can read public assets"
+on storage.objects for select
+to anon, authenticated
+using (bucket_id = 'public-assets');
+
+create policy "authenticated users can upload own public assets"
+on storage.objects for insert
+to authenticated
+with check (
+  bucket_id = 'public-assets'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);
+```
+
+Storage path convention:
+
+```txt
+analysis-imports/{user_id}/{upload_id}/original.md
+analysis-exports/{user_id}/{song_slug}/notebooklm-pack.md
+analysis-exports/{user_id}/{song_slug}/youtube-outline.md
+public-assets/{user_id}/{song_slug}/quote-card.png
+public-assets/{user_id}/{song_slug}/thumbnail-concept.png
+private-assets/{user_id}/{song_slug}/source/
+```
+
+---
+
+## 9. Environment Variables
+
+Add this to `.env.example`:
+
+```bash
+# Supabase public client variables
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+
+# Server-only Supabase variables
+SUPABASE_SECRET_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_PROJECT_ID=
+SUPABASE_ACCESS_TOKEN=
+
+# Storage buckets
+SUPABASE_ANALYSIS_IMPORTS_BUCKET=analysis-imports
+SUPABASE_ANALYSIS_EXPORTS_BUCKET=analysis-exports
+SUPABASE_PUBLIC_ASSETS_BUCKET=public-assets
+SUPABASE_PRIVATE_ASSETS_BUCKET=private-assets
+
+# App configuration
+SONG_SOLILOQUY_DEFAULT_WORKSPACE_SLUG=song-soliloquy
+SONG_SOLILOQUY_PUBLIC_BASE_URL=
+SONG_SOLILOQUY_ADMIN_EMAILS=
+
+# Optional AI/search features
+OPENAI_API_KEY=
+ENABLE_VECTOR_SEARCH=false
+```
+
+Rules:
+
+- Never expose `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, or `SUPABASE_ACCESS_TOKEN` to browser code.
+- Only `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` belong in browser-accessible code.
+- Store production secrets in the hosting provider and GitHub Actions secrets.
+
+---
+
+## 10. Next.js Supabase Client Files
+
+Add:
+
+```txt
+src/lib/supabase/client.ts
+src/lib/supabase/server.ts
+src/lib/supabase/admin.ts
+```
+
+### 10.1 Browser Client
+
+```ts
+// src/lib/supabase/client.ts
+import { createBrowserClient } from '@supabase/ssr'
+
+export function createClient() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
+  )
+}
+```
+
+### 10.2 Server Client
+
+```ts
+// src/lib/supabase/server.ts
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+
+export async function createClient() {
+  const cookieStore = await cookies()
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options)
+            })
+          } catch {
+            // Server Components cannot always set cookies.
+            // Middleware/proxy should handle session refresh.
+          }
+        },
+      },
+    }
+  )
+}
+```
+
+### 10.3 Admin Client
+
+Use only in server-only import routes, admin actions, scripts, or trusted backend jobs.
+
+```ts
+// src/lib/supabase/admin.ts
+import 'server-only'
+import { createClient } from '@supabase/supabase-js'
+
+export function createAdminClient() {
+  const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !key) {
+    throw new Error('Missing Supabase admin environment variables')
+  }
+
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, key, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  })
+}
+```
+
+---
+
+## 11. Parser and Import Logic
+
+Add parser files:
+
+```txt
+src/lib/parser/parse-song-soliloquy-markdown.ts
+src/lib/parser/validate-analysis-payload.ts
+src/lib/actions/import-analysis-file.ts
+```
+
+### 11.1 Parser Output Contract
+
+The parser should produce this shape:
+
+```ts
+export type ParsedSongSoliloquyAnalysis = {
+  metadata: {
+    artist: string
+    song: string
+    producer?: string
+    project?: string
+    release_date?: string
+    featured_artists?: string[]
+    track_number?: string
+    overall_mood?: string
+    main_themes?: string[]
+    narrative_perspective?: string
+    suggested_url_slug?: string
+    seo_title?: string
+    seo_description?: string
+    thumbnail_text?: string[]
+  }
+  lyrics_sections: Array<{
+    section_label: string
+    lines: Array<{
+      text: string
+      line_number?: number
+      is_public_excerpt?: boolean
+      is_key_bar?: boolean
+      is_hottest_bar?: boolean
+      annotations?: Record<string, unknown>
+    }>
+  }>
+  bar_analysis: Array<{
+    bar: string
+    breakdown?: string
+    deeper_read?: string
+    technical_notes?: string
+    why_it_hits?: string
+    tags?: string[]
+    themes?: string[]
+    references?: unknown[]
+    bar_type?: string[]
+    scores?: Record<string, number>
+  }>
+  raw_notes?: Record<string, unknown>
+  key_bars?: Array<Record<string, unknown>>
+  hottest_bar?: Record<string, unknown>
+  notebooklm_source_pack?: Record<string, unknown>
+  notebooklm_questions?: Array<{ category?: string; question: string }>
+  youtube_ready_angle?: Record<string, unknown>
+  context_cards?: Array<Record<string, unknown>>
+  reference_ledger?: Array<Record<string, unknown>>
+  song_connections?: Array<Record<string, unknown>>
+}
+```
+
+### 11.2 Import Function Responsibilities
+
+The import action should:
+
+1. Authenticate user.
+2. Confirm user has workspace editor/admin permission.
+3. Validate file type and size.
+4. Upload original file to Storage.
+5. Create `analysis_uploads` record.
+6. Parse the file.
+7. Validate parsed payload.
+8. Upsert artist, producer, project, and song records.
+9. Insert analysis child records.
+10. Create search documents.
+11. Create connection records.
+12. Set status to `needs_review`.
+13. Return preview URL.
+
+### 11.3 Error Handling
+
+Parsing errors should not destroy the upload. Store the original file and create `analysis_import_errors` rows.
+
+Example errors:
+
+```txt
+missing_metadata.artist
+missing_metadata.song
+invalid_release_date
+missing_bar_analysis
+unmatched_key_bar
+invalid_hottest_bar_structure
+copyright_visibility_required
+```
+
+---
+
+## 12. Search Plan
+
+Start with Postgres full-text search.
+
+Search should cover:
+
+- Song title
+- Artist
+- Producer
+- Project
+- Themes
+- Mood
+- Bar quotes
+- Breakdown text
+- Deeper Read text
+- Technical Notes
+- Why It Hits
+- Context Cards
+- Reference Ledger
+- NotebookLM questions
+- YouTube title and thesis
+- Tags
+
+Add one `search_documents` row per searchable section.
+
+Example document types:
+
+```txt
+song_metadata
+bar_analysis
+key_bar
+hottest_bar
+context_card
+reference
+notebooklm_question
+youtube_angle
+raw_note
+connection
+```
+
+Optional later:
+
+- Add `analysis_embeddings` with pgvector for semantic search.
+- Use embeddings for queries like: "songs about betrayal and fatherhood" or "bars with religious survival imagery."
+
+---
+
+## 13. Connection Web With Supabase
+
+The Connection Web should be powered by `song_connections` plus `connection_evidence` or JSON evidence.
+
+Connection types:
+
+```txt
+same_artist
+same_producer
+same_project
+similar_theme
+similar_mood
+similar_bpm
+same_sample_source
+sample_lineage
+shared_pop_culture_reference
+shared_religious_reference
+shared_historical_reference
+similar_wordplay
+similar_rhyme_architecture
+catalog_callback
+viewer_suggested
+manual_editor_connection
+```
+
+Connection evidence should store:
+
+```json
+{
+  "related_bars": [],
+  "bpm": null,
+  "sample_source": null,
+  "reference_label": null,
+  "theme_overlap": [],
+  "why_it_matters": "",
+  "youtube_comparison_angle": ""
+}
+```
+
+Connection public display rule:
+
+> Only show connections publicly when `is_public = true` and `evidence_status` is not `unverified`.
+
+---
+
+## 14. Website Page Behavior With Supabase
+
+### 14.1 Public Song Page
+
+Route example:
+
+```txt
+/songs/[artist-slug]/[song-slug]
+```
+
+Data loaded from Supabase:
+
+- `songs`
+- `bar_analyses`
+- `key_bars`
+- `hottest_bars`
+- public `context_cards`
+- public `song_connections`
+- public `search_documents` snippets where needed
+- lyric excerpts only, unless full rights are cleared
+
+### 14.2 Admin Preview Page
+
+Route example:
+
+```txt
+/admin/songs/[song-id]/preview
+```
+
+Data loaded from Supabase:
+
+- Full draft
+- Full lyrics, if stored
+- Upload file record
+- Import errors
+- Validation warnings
+- Private notes
+- Publishing checklist
+
+### 14.3 Library Page
+
+Route example:
+
+```txt
+/library
+```
+
+Data loaded from Supabase:
+
+- Published songs for public visitors
+- Draft + review + published songs for authenticated editors
+- Filters from tags, artists, producers, projects, moods, and themes
+
+### 14.4 Upload Page
+
+Route example:
+
+```txt
+/admin/import
+```
+
+Flow:
+
+- Auth required
+- Editor/admin role required
+- Upload file
+- Show progress
+- Run parser
+- Show validation report
+- Send to preview
+
+---
+
+## 15. Optional Supabase Edge Functions
+
+The MVP can parse files in a Next.js route handler or server action.
+
+Use Supabase Edge Functions later for:
+
+```txt
+process-analysis-import
+regenerate-search-documents
+create-song-connection-suggestions
+build-notebooklm-export
+generate-quote-card-metadata
+send-publish-webhook
+```
+
+Recommended first Edge Function:
+
+```txt
+process-analysis-import
+```
+
+Responsibilities:
+
+1. Receive upload ID.
+2. Download original file from Storage.
+3. Parse file.
+4. Validate payload.
+5. Write normalized records to Postgres.
+6. Return import status.
+
+Use this when parsing becomes too heavy for the website server route or when Homeland.ai needs the parsing workflow as a backend job.
+
+---
+
+## 16. GitHub Actions for Supabase
+
+Add:
+
+```txt
+.github/workflows/supabase-migrations.yml
+```
+
+Starter workflow:
+
+```yaml
+name: Supabase Migrations
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/config.toml'
+  workflow_dispatch:
+
+jobs:
+  deploy-migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v2
+
+      - name: Link Supabase project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+
+      - name: Push database migrations
+        run: supabase db push
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+```
+
+GitHub Secrets needed:
+
+```txt
+SUPABASE_ACCESS_TOKEN
+SUPABASE_PROJECT_ID
+```
+
+Optional separate environments:
+
+```txt
+staging Supabase project
+production Supabase project
+```
+
+Recommended branch pattern:
+
+```txt
+develop -> staging Supabase project
+main -> production Supabase project
+```
+
+---
+
+## 17. Repository Issue Checklist
+
+Create these GitHub issues:
+
+### Backend Setup
+
+```txt
+[Backend] Create Supabase project for Song Soliloquy
+[Backend] Add Supabase environment variables
+[Backend] Add Supabase client/server/admin helpers
+[Backend] Create initial database migration
+[Backend] Add RLS policies for public reads and editor writes
+[Backend] Add Storage buckets and policies
+[Backend] Add GitHub Actions workflow for Supabase migrations
+```
+
+### Upload and Parser
+
+```txt
+[Import] Build Markdown upload route
+[Import] Save original file to Supabase Storage
+[Import] Parse Song Soliloquy Markdown into structured JSON
+[Import] Validate parsed payload with schema
+[Import] Insert normalized song analysis records
+[Import] Add import error reporting
+[Import] Add admin preview page
+```
+
+### Website Pages
+
+```txt
+[Web] Load public song page from Supabase
+[Web] Build library search/filter page from Supabase
+[Web] Build song detail query helpers
+[Web] Build Key Bars and Hottest Bar Supabase components
+[Web] Build Context Cards module
+[Web] Build Connection Web query layer
+```
+
+### Security and Publishing
+
+```txt
+[Security] Add workspace role checks
+[Security] Confirm full lyrics are private by default
+[Security] Add publish checklist before public display
+[Security] Add verified/interpretive/unverified reference status
+[Security] Audit public policies before launch
+```
+
+---
+
+## 18. MVP Order
+
+Build in this order:
+
+1. Supabase project setup.
+2. Environment variables.
+3. Database migration for core tables.
+4. RLS public/draft rules.
+5. Storage buckets.
+6. Upload original file to Storage.
+7. Parse one Markdown file.
+8. Insert one full song analysis into Supabase.
+9. Render one public song page from Supabase.
+10. Render admin preview page.
+11. Add publish workflow.
+12. Add library search.
+13. Add Context Cards.
+14. Add Connection Web.
+15. Add export/download tools.
+16. Add optional Edge Functions or vector search.
+
+Important product rule:
+
+> Do not build every backend feature before proving that one uploaded Song Soliloquy file can become one beautiful, public, interactive song page.
+
+---
+
+## 19. Figma / Product Prompt Patch
+
+Add this to the website design prompt:
+
+```text
+Add Supabase-backed admin and publishing states to the Song Soliloquy website.
+
+The upload page should connect to Supabase Storage and show the original file, upload status, parser status, validation warnings, and publishing status. The admin preview page should show whether the song is Draft, Needs Review, Approved, Published, Hidden Until Verified, Archived, or Rejected.
+
+Add an admin backend panel with modules for:
+- Uploaded Files
+- Parse Status
+- Validation Warnings
+- Song Metadata
+- Lyrics Visibility
+- Rights / Excerpt Mode
+- Bar Analysis Records
+- Key Bars
+- Hottest Bar
+- Context Cards
+- Reference Ledger
+- Connection Web Data
+- SEO Metadata
+- Publishing Checklist
+
+Add clear UI badges for:
+- Saved to Supabase
+- Draft
+- Needs Review
+- Published
+- Public Excerpt Only
+- Private Full Lyrics
+- Verified Reference
+- Interpretive Reference
+- Needs Verification
+
+The public website should only show published records. Draft records should only be visible to authenticated editors/admins.
+```
+
+---
+
+## 20. Definition of Done
+
+The Supabase backend patch is complete when:
+
+```txt
+[ ] Supabase project exists
+[ ] .env.example has Supabase variables
+[ ] Supabase clients exist for browser, server, and admin contexts
+[ ] Database migrations exist in GitHub
+[ ] Core tables are created
+[ ] RLS is enabled on all public tables
+[ ] Storage buckets are created
+[ ] Storage policies protect private imports
+[ ] One Markdown file uploads successfully
+[ ] Original upload is stored in Supabase Storage
+[ ] Parsed song data is stored in Supabase Postgres
+[ ] Admin preview displays parsed sections
+[ ] Public page displays only published content
+[ ] Full lyrics are private or excerpt-controlled by default
+[ ] Key Bars and Hottest Bar render from Supabase
+[ ] Context Cards render only when public and verified enough
+[ ] Connection Web can query related song records
+[ ] Search can find songs, bars, themes, artists, producers, and references
+[ ] GitHub Actions can apply migrations
+[ ] Secrets are not committed to GitHub
+```
+
+---
+
+## 21. Final Backend Principle
+
+The Supabase integration should not make Song Soliloquy feel like a database product.
+
+It should make the website feel alive:
+
+- Uploads become pages.
+- Bars become cards.
+- References become context.
+- Themes become filters.
+- Songs become a connection web.
+- Creator notes become video assets.
+- GitHub keeps the build disciplined.
+- Supabase keeps the experience dynamic.
+
+
+---
+
+# Appendix: Version 2.3 Song Detail Route Import Stability Patch
+
+## Problem
+
+The Figma Make preview showed this runtime failure while opening a song detail URL:
+
+```txt
+Unexpected Application Error!
+Failed to fetch dynamically imported module: /src/app/components/pages/SongDetail.tsx
+```
+
+This is a route module loading failure. It happens before the Song Detail page can render, so it should be handled as a routing/import stability issue rather than a content, Markdown parser, or Supabase issue.
+
+## Required Fix
+
+For the MVP and the Figma preview, core routes should use static imports:
+
+- `/`
+- `/library`
+- `/upload`
+- `/song/:slug`
+- `*` / not-found
+
+The `/song/:slug` route should statically import `SongDetail` and render it directly. Do not dynamically import `SongDetail.tsx` in the route definition while the app is being stabilized in preview.
+
+## Required Route Error Handling
+
+Add a branded `RouteErrorBoundary` and attach it to the root route and `/song/:slug` route through `errorElement`. The fallback should include:
+
+- Song Soliloquy branded error copy;
+- reload button;
+- back-to-library button;
+- diagnostic message;
+- no default white React Router error page.
+
+## Stability Rule
+
+Core public pages must not depend on brittle dynamic imports in preview environments. After production hosting is stable, code splitting may be reintroduced only with:
+
+- confirmed route module export shape;
+- route-level `errorElement` coverage;
+- lazy import retry handling;
+- user-facing reload/recovery UI;
+- no nested lazy chains inside core route pages.
+
+## Acceptance Criteria
+
+- `/song/:slug` no longer tries to dynamically fetch `/src/app/components/pages/SongDetail.tsx` in the Figma preview.
+- Song pages render from static page imports.
+- Bad slugs render a branded not-found state.
+- Runtime failures render a branded route recovery screen.
+- The default React Router white error page no longer appears during normal user testing.
+
+---
+
+## Appendix: Version 2.4 Upload Save and Slug Resolution Patch
+
+### Problem
+
+After upload, the app may route to a generated slug such as:
+
+```txt
+/song/ransom-tears-from-a-third-eye-song-soliloquy-breakdown-mz7hzhdw
+```
+
+and show:
+
+```txt
+Song Not Found
+```
+
+This is not a route import problem anymore. It is an upload persistence and slug-resolution problem.
+
+### Cause
+
+The upload flow is navigating to a filename/import slug before the parsed song-analysis record has been saved into a shared store, or `SongDetail` is searching only demo/static songs instead of uploaded records. The app may also be treating the export filename suffix `song-soliloquy-breakdown` and generated import ID as part of the public URL.
+
+### Fix
+
+1. Parse the uploaded Markdown file.
+2. Derive the canonical slug from `metadata.slug`, `metadata.suggested_url_slug`, body field `Suggested URL slug`, or `artist + song title`.
+3. Strip export suffixes from filename fallback slugs.
+4. Save the parsed song record before navigation.
+5. Save filename/import slugs as aliases.
+6. Make `SongDetail` resolve both canonical slugs and aliases.
+7. In Figma preview, persist uploaded songs to `localStorage` so records survive route changes and refreshes.
+8. In production, save the original file to Supabase Storage and the parsed record to Supabase Postgres.
+9. Add a `song_slug_aliases` table in Supabase for canonical URL resolution.
+10. Make Library merge static/demo songs with uploaded songs.
+
+### Canonical slug priority
+
+```txt
+metadata.slug
+metadata.suggested_url_slug
+seo.suggested_url_slug
+body field: Suggested URL slug
+artist + song title
+cleaned filename fallback
+```
+
+### Supabase production addition
+
+Add a `song_slug_aliases` table:
+
+```sql
+create table if not exists public.song_slug_aliases (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid references public.workspaces(id) on delete cascade,
+  song_id uuid not null references public.songs(id) on delete cascade,
+  alias_slug text not null,
+  alias_type text not null default 'upload_filename' check (
+    alias_type in ('canonical', 'upload_filename', 'generated_import', 'legacy', 'manual')
+  ),
+  created_at timestamptz not null default now(),
+  unique (workspace_id, alias_slug)
+);
+```
+
+### Acceptance criteria
+
+- Uploading `ransom-tears-from-a-third-eye-song-soliloquy-breakdown.md` creates a saved song record.
+- The app redirects to `/song/ransom-tears-from-a-third-eye`.
+- Refreshing that page still shows the song in Figma preview through `localStorage`.
+- Visiting the generated upload slug resolves to the same record or redirects to the canonical slug.
+- The uploaded song appears in Library immediately.
+- `Song Not Found` appears only when no canonical slug or alias matches.
+
+See also: `song-soliloquy-upload-slug-resolution-patch.md`.
+
