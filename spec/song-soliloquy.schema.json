@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://songsoliloquy.example/schema/song-soliloquy-v1.1.json",
+  "title": "Song Soliloquy",
+  "type": "object",
+  "required": ["schema_version","export_status","missing_required_fields","metadata","lyrics","song_context","figurative_language","entendres","bar_analysis","key_bars","hottest_bar","raw_notes","notebooklm_source_pack","notebooklm_questions","youtube_ready_angle","seo","similar_songs"],
+  "properties": {
+    "schema_version": {"const": "song-soliloquy/v1.1"},
+    "export_status": {"enum": ["complete", "incomplete"]},
+    "missing_required_fields": {"type": "array", "items": {"type": "string"}},
+    "metadata": {
+      "type": "object",
+      "required": ["artist","song","title","featured_artists","producer","project","release_date","bpm","canonical_slug","suggested_url_slug","overall_mood","main_themes","narrative_perspective"],
+      "properties": {
+        "artist":{"type":"string"}, "song":{"type":"string"}, "title":{"type":"string"},
+        "featured_artists":{"type":"array","items":{"type":"string"}}, "producer":{"type":"string"},
+        "project":{"type":"string"}, "release_date":{"type":"string"}, "bpm":{"type":"string"},
+        "canonical_slug":{"type":"string"}, "suggested_url_slug":{"type":"string"},
+        "overall_mood":{"type":"string"}, "main_themes":{"type":"array","items":{"type":"string"}},
+        "narrative_perspective":{"type":"string"}
+      }
+    },
+    "lyrics": {"type":"array","items":{"type":"object","required":["section","lines"],"properties":{"section":{"type":"string"},"lines":{"type":"array","items":{"type":"string"}}}}},
+    "song_context": {"type":"object","required":["overall_mood","main_themes","narrative_perspective","narrator_profile"],"properties":{"overall_mood":{"type":"string"},"main_themes":{"type":"array","items":{"type":"string"}},"narrative_perspective":{"type":"string"},"narrator_profile":{"type":"string"}}},
+    "figurative_language": {"type":"array","items":{"$ref":"#/$defs/figurative"}},
+    "entendres": {"type":"array","items":{"$ref":"#/$defs/entendre"}},
+    "bar_analysis": {"type":"array","items":{"type":"object","required":["bar","breakdown","deeper_read","technical_notes","why_it_hits","figurative_language","entendres","pop_culture_references","tags","themes","bar_type"],"properties":{"bar":{"type":"string"},"breakdown":{"type":"string"},"deeper_read":{"type":"string"},"technical_notes":{"type":"string"},"why_it_hits":{"type":"string"},"figurative_language":{"type":"object","required":["metaphors","similes","symbols","imagery"],"properties":{"metaphors":{"type":"array","items":{"type":"string"}},"similes":{"type":"array","items":{"type":"string"}},"symbols":{"type":"array","items":{"type":"string"}},"imagery":{"type":"array","items":{"type":"string"}}}},"entendres":{"type":"array","items":{"type":"object"}},"pop_culture_references":{"type":"array","items":{"type":"string"}},"tags":{"type":"array","items":{"type":"string"}},"themes":{"type":"array","items":{"type":"string"}},"bar_type":{"type":"array","items":{"type":"string"}}}}},
+    "key_bars": {"type":"array","minItems":5,"maxItems":10,"items":{"type":"object","required":["bar","why_important","theme","classification"],"properties":{"bar":{"type":"string"},"why_important":{"type":"string"},"theme":{"type":"string"},"classification":{"type":"array","items":{"type":"string"}}}}},
+    "hottest_bar": {"type":"object","required":["bar","why_it_wins","surface_meaning","hidden_meaning","technical_craft","viewer_reaction_potential","youtube_discussion_value","score"],"properties":{"bar":{"type":"string"},"why_it_wins":{"type":"string"},"surface_meaning":{"type":"string"},"hidden_meaning":{"type":"string"},"technical_craft":{"type":"string"},"viewer_reaction_potential":{"type":"string"},"youtube_discussion_value":{"type":"string"},"score":{"type":"integer","minimum":1,"maximum":100}}},
+    "raw_notes":{"type":"object"},
+    "notebooklm_source_pack":{"type":"object"},
+    "notebooklm_questions":{"type":"array","items":{"type":"string"}},
+    "youtube_ready_angle":{"type":"object"},
+    "seo":{"type":"object","required":["seo_title","meta_description","url_slug","tags"],"properties":{"seo_title":{"type":"string"},"meta_description":{"type":"string","maxLength":160},"url_slug":{"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$"},"tags":{"type":"array","items":{"type":"string"}}}},
+    "similar_songs":{"type":"array","items":{"type":"object","required":["artist","song","why_it_compares"],"properties":{"artist":{"type":"string"},"song":{"type":"string"},"why_it_compares":{"type":"string"}}}}
+  },
+  "$defs": {
+    "figurative": {"type":"object","required":["type","phrase","line","section","meaning","why_it_works"],"properties":{"type":{"enum":["metaphor","simile","symbol","personification","imagery"]},"phrase":{"type":"string"},"line":{"type":"string"},"section":{"type":"string"},"meaning":{"type":"string"},"why_it_works":{"type":"string"}}},
+    "meaningLayer":{"type":"object","required":["layer","meaning","evidence"],"properties":{"layer":{"type":"integer","minimum":1,"maximum":3},"meaning":{"type":"string"},"evidence":{"type":"string"}}},
+    "entendre": {"type":"object","required":["type","phrase","line","section","confidence","meanings"],"properties":{"type":{"enum":["double_entendre","triple_entendre"]},"phrase":{"type":"string"},"line":{"type":"string"},"section":{"type":"string"},"confidence":{"enum":["high","medium","low"]},"meanings":{"type":"array","minItems":2,"maxItems":3,"items":{"$ref":"#/$defs/meaningLayer"}}}}
+  }
+}
