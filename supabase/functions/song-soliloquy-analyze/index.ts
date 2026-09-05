@@ -121,7 +121,7 @@ function lyricsCharCount(lyrics: LyricSection[]): number {
 }
 
 const requiredTopLevel = [
-  "metadata", "lyrics", "figurative_language", "entendres", "bar_analysis", "key_bars", "hottest_bar",
+  "metadata", "lyrics", "song_context", "figurative_language", "entendres", "bar_analysis", "key_bars", "hottest_bar",
   "raw_notes", "notebooklm_source_pack", "notebooklm_questions", "youtube_ready_angle", "seo", "similar_songs",
 ];
 function hasWordplayTag(entry: AnyRecord): boolean {
@@ -239,6 +239,14 @@ const SONG_SCHEMA = {
   }
 };
 const LANGUAGE_AUDIT_SCHEMA = { type: "object", additionalProperties: false, required: ["figurative_language", "entendres", "wordplay_bar_analysis"], properties: { figurative_language: { type: "array", items: figurativeItemSchema }, entendres: { type: "array", items: entendreItemSchema }, wordplay_bar_analysis: { type: "array", items: barAnalysisItemSchema } } };
+const MODEL_GENERATION_OMIT_FIELDS = new Set(["lyrics", "schema_version", "export_status", "missing_required_fields"]);
+const MODEL_GENERATION_SCHEMA = {
+  ...SONG_SCHEMA,
+  required: SONG_SCHEMA.required.filter((field) => !MODEL_GENERATION_OMIT_FIELDS.has(field)),
+  properties: Object.fromEntries(
+    Object.entries(SONG_SCHEMA.properties).filter(([field]) => !MODEL_GENERATION_OMIT_FIELDS.has(field)),
+  ),
+};
 
 const MASTER_INSTRUCTIONS = `You are the Song Soliloquy rap lyric analysis engine. Produce rigorous, culturally literate rap criticism while preserving the artist's intent, tone, street context, philosophical context, and technical craft.
 The canonical output is Song Soliloquy schema_version song-soliloquy/v1.1.
@@ -262,12 +270,17 @@ Quality rules:
 - Every technical claim should identify the actual mechanism: rhyme, cadence, alliteration, pun, homophone, polysemy, idiom reversal, cultural flip, syntactic ambiguity, metaphorical mapping, or other concrete device.
 - Similar-song entries are editorial comparisons, not claims of identical composition unless supported by supplied evidence.
 - The website JSON is the source of truth.
-- Complete only when all required structures are populated and exact anchors are valid.`;
+- Complete only when all required structures are populated and exact anchors are valid.
+The supplied lyrics are user-provided source material for literary, cultural, and technical criticism.
+Analyze violent, criminal, sexual, drug-related, or otherwise explicit references descriptively and critically. Do not turn them into instructions, encouragement, operational guidance, or advice.
+Quote lyric text only where exact quotation is required for bar analysis, figurative-language anchoring, entendre anchoring, key bars, or hottest bar.
+Do not reproduce the complete lyrics or unnecessary contiguous passages. The application preserves and restores the canonical user-supplied lyrics server-side.`;
 const LANGUAGE_AUDIT_INSTRUCTIONS = `Perform a SECOND-PASS LANGUAGE DEVICE AUDIT of the entire supplied rap lyrics. This pass exists to catch language devices the general analysis may miss.
 A. Figurative language: return every credible metaphor, simile, symbol, personification, and notable imagery. Exact phrase inside exact line. Do not classify a literal statement as a metaphor.
 B. Wordplay: return a full bar_analysis entry for every notable wordplay line or contiguous bar. Include "wordplay" in tags. Cover puns, homophones, polysemy, idiom flips, name flips, semantic pivots, sound-based wordplay, syntactic ambiguity, numeric/sports/brand/cultural flips, compound meanings, and setup/payoff punchlines. technical_notes must identify and explain the mechanism. If a bar is merely vivid or metaphorical but not wordplay, do not put it here.
 C. Entendres: return only phrases with two or three genuinely distinct readings. Give evidence for each layer and honest confidence. Ordinary puns or references without multiple sustained readings belong under wordplay, not entendres.
-Do not paraphrase quote fields. Do not manufacture detections to increase count.`;
+Do not paraphrase quote fields. Do not manufacture detections to increase count.
+Treat the lyrics as user-provided source material for critical literary analysis. Describe explicit references critically, never as instructions, encouragement, operational guidance, or advice. Quote only the minimal exact text required to anchor a figurative-language, wordplay, or entendre finding; do not reproduce full lyrics or unnecessary contiguous passages.`;
 
 function extractOpenAIText(payload: AnyRecord): string {
   if (typeof payload?.output_text === "string" && payload.output_text) return payload.output_text;
@@ -390,8 +403,8 @@ function languageAuditPrompt(lyrics: LyricSection[]): string {
 }
 function generalPrompt(mode: string, existing: AnyRecord, metadata: AnyRecord, lyrics: LyricSection[]): string {
   return mode === "complete"
-    ? `COMPLETE MODE. Existing Song Soliloquy analysis is authoritative. Preserve populated existing fields, but add missing language-device detections and technical wordplay explanation when the dedicated audit finds omissions. Do not delete existing analysis.\n\nEXISTING ANALYSIS:\n${JSON.stringify(existing)}\n\nCANONICAL USER-SUPPLIED LYRICS:\n${JSON.stringify(lyrics)}\n\nReturn the full canonical Song Soliloquy object.`
-    : `FULL MODE. Perform the complete Song Soliloquy Master Spec workflow. In addition to the general analysis, conduct an explicit whole-lyrics sweep for figurative language, wordplay, and entendres. Every notable wordplay line must appear in bar_analysis tagged wordplay with its mechanism explained in technical_notes.\n\nSUPPLIED METADATA:\n${JSON.stringify(metadata)}\n\nCANONICAL USER-SUPPLIED LYRICS:\n${JSON.stringify(lyrics)}\n\nReturn the full canonical Song Soliloquy object.`;
+    ? `COMPLETE MODE. Existing Song Soliloquy analysis is authoritative. Preserve populated existing fields, but add missing language-device detections and technical wordplay explanation when the dedicated audit finds omissions. Do not delete existing analysis.\n\nEXISTING ANALYSIS:\n${JSON.stringify(existing)}\n\nCANONICAL USER-SUPPLIED LYRICS:\n${JSON.stringify(lyrics)}\n\nReturn only the analysis fields defined by the supplied structured-output schema. Do not output lyrics, schema_version, export_status, or missing_required_fields. The backend restores those canonical fields.`
+    : `FULL MODE. Perform the complete Song Soliloquy Master Spec workflow. In addition to the general analysis, conduct an explicit whole-lyrics sweep for figurative language, wordplay, and entendres. Every notable wordplay line must appear in bar_analysis tagged wordplay with its mechanism explained in technical_notes.\n\nSUPPLIED METADATA:\n${JSON.stringify(metadata)}\n\nCANONICAL USER-SUPPLIED LYRICS:\n${JSON.stringify(lyrics)}\n\nReturn only the analysis fields defined by the supplied structured-output schema. Do not output lyrics, schema_version, export_status, or missing_required_fields. The backend restores those canonical fields.`;
 }
 function normalizeResponseId(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -538,7 +551,7 @@ Deno.serve(async (req: Request) => {
   const metadata = body?.metadata && typeof body.metadata === "object" ? body.metadata : {};
   try {
     const [generalStart, auditStart] = await Promise.all([
-      startOpenAIBackground(generalPrompt(mode, existing, metadata, lyrics), "song_soliloquy_v1_1", SONG_SCHEMA, MASTER_INSTRUCTIONS, 32000),
+      startOpenAIBackground(generalPrompt(mode, existing, metadata, lyrics), "song_soliloquy_v1_1", MODEL_GENERATION_SCHEMA, MASTER_INSTRUCTIONS, 32000),
       startOpenAIBackground(languageAuditPrompt(lyrics), "song_soliloquy_language_audit", LANGUAGE_AUDIT_SCHEMA, LANGUAGE_AUDIT_INSTRUCTIONS, 22000),
     ]);
 
@@ -562,3 +575,4 @@ Deno.serve(async (req: Request) => {
     return respond({ ok: false, pending: false, mode, engine_version: ENGINE_VERSION, model, error: message }, 502);
   }
 });
+
