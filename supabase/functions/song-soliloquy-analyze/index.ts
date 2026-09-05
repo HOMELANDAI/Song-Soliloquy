@@ -35,6 +35,13 @@ type LanguageAudit = {
   entendres: AnyRecord[];
   wordplay_bar_analysis: AnyRecord[];
 };
+type LanguageAuditResolution = {
+  audit: LanguageAudit;
+  status: "completed" | "skipped";
+  openai_status: string;
+  reason: string | null;
+  warning: string | null;
+};
 
 function respond(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: jsonHeaders });
@@ -352,6 +359,54 @@ function parseCompletedStructuredOutput(payload: AnyRecord, stage: string): AnyR
     throw new Error(`${stage} returned output that could not be parsed as JSON.`);
   }
 }
+function resolveLanguageAudit(payload: AnyRecord): LanguageAuditResolution {
+  const openaiStatus = String(payload?.status ?? "unknown");
+  const emptyAudit: LanguageAudit = {
+    figurative_language: [],
+    entendres: [],
+    wordplay_bar_analysis: [],
+  };
+
+  if (openaiStatus !== "completed") {
+    const incompleteReason = payload?.incomplete_details?.reason;
+    const errorCode = payload?.error?.code;
+    const reason = typeof incompleteReason === "string" && incompleteReason.trim()
+      ? incompleteReason
+      : typeof errorCode === "string" && errorCode.trim()
+      ? errorCode
+      : openaiStatus;
+    return {
+      audit: emptyAudit,
+      status: "skipped",
+      openai_status: openaiStatus,
+      reason,
+      warning: terminalOpenAIError(payload, "Language audit"),
+    };
+  }
+
+  try {
+    const parsed = parseCompletedStructuredOutput(payload, "Language audit");
+    return {
+      audit: {
+        figurative_language: Array.isArray(parsed?.figurative_language) ? parsed.figurative_language : [],
+        entendres: Array.isArray(parsed?.entendres) ? parsed.entendres : [],
+        wordplay_bar_analysis: Array.isArray(parsed?.wordplay_bar_analysis) ? parsed.wordplay_bar_analysis : [],
+      },
+      status: "completed",
+      openai_status: openaiStatus,
+      reason: null,
+      warning: null,
+    };
+  } catch (error) {
+    return {
+      audit: emptyAudit,
+      status: "skipped",
+      openai_status: openaiStatus,
+      reason: "invalid_structured_output",
+      warning: error instanceof Error ? error.message : "Language audit output could not be used.",
+    };
+  }
+}
 function unionByKey(existing: AnyRecord[], incoming: AnyRecord[], keyFn: (x: AnyRecord) => string): AnyRecord[] {
   const map = new Map<string, AnyRecord>();
   for (const item of existing ?? []) map.set(keyFn(item), item);
@@ -436,6 +491,7 @@ Deno.serve(async (req: Request) => {
       model,
       openai_configured: Boolean(Deno.env.get("OPENAI_API_KEY")),
       language_audit: true,
+      language_audit_failure_policy: "continue_with_general_analysis",
       async_background: true,
       enforced_detection: ["figurative_language", "wordplay", "entendres"],
       modes: ["full", "complete", "validate", "status"],
@@ -498,21 +554,9 @@ Deno.serve(async (req: Request) => {
           error: terminalOpenAIError(generalState, "General analysis"),
         }, 502);
       }
-      if (auditStatus !== "completed") {
-        return respond({
-          ok: false,
-          pending: false,
-          mode: analysisMode,
-          engine_version: ENGINE_VERSION,
-          model,
-          stage: "language_audit",
-          openai_status: auditStatus,
-          error: terminalOpenAIError(auditState, "Language audit"),
-        }, 502);
-      }
-
       const generated = parseCompletedStructuredOutput(generalState, "General analysis");
-      const audit = parseCompletedStructuredOutput(auditState, "Language audit") as LanguageAudit;
+      const auditResolution = resolveLanguageAudit(auditState);
+      const audit = auditResolution.audit;
       const metadata = body?.metadata && typeof body.metadata === "object" ? body.metadata : {};
       let song: AnyRecord = analysisMode === "complete"
         ? protectedMerge(existing, generated, lyrics)
@@ -531,7 +575,19 @@ Deno.serve(async (req: Request) => {
         model,
         song,
         validation,
+        analysis_warnings: auditResolution.warning
+          ? [{
+            code: "LANGUAGE_AUDIT_SKIPPED",
+            stage: "language_audit",
+            reason: auditResolution.reason,
+            message: auditResolution.warning,
+          }]
+          : [],
         language_audit: {
+          status: auditResolution.status,
+          openai_status: auditResolution.openai_status,
+          reason: auditResolution.reason,
+          warning: auditResolution.warning,
           figurative_language_detected: audit.figurative_language?.length ?? 0,
           wordplay_bars_detected: audit.wordplay_bar_analysis?.length ?? 0,
           entendres_detected: audit.entendres?.length ?? 0,
